@@ -1,0 +1,249 @@
+# SQLAlchemy 数据表
+
+业务字段独立建模，MySQL 使用 InnoDB / utf8mb4。
+以下是创建的数据表
+
+## email_verifications
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| email | VARCHAR(100) | False | True |
+| request_id | VARCHAR(32) | False | False |
+| code_digest | VARCHAR(64) | False | False |
+| expires_at | DATETIME | False | False |
+| requested_at | DATETIME | False | False |
+| failed_attempts | INTEGER | False | False |
+| active | BOOLEAN | False | False |
+| window_started_at | DATETIME | False | False |
+| window_count | INTEGER | False | False |
+
+## users
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| id | VARCHAR(32) | False | True |
+| email | VARCHAR(100) | False | False |
+| password_hash | VARCHAR(255) | True | False |
+| name | VARCHAR(30) | False | False |
+| major | VARCHAR(30) | False | False |
+| grade | VARCHAR(10) | False | False |
+| contact_email | VARCHAR(100) | False | False |
+| reduced_motion | BOOLEAN | False | False |
+| reminders | BOOLEAN | False | False |
+| is_guest | BOOLEAN | False | False |
+| email_verified | BOOLEAN | False | False |
+| created_at | DATETIME | False | False |
+
+## auth_sessions
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| digest | VARCHAR(64) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| expires_at | DATETIME | False | False |
+
+## courses
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| id | VARCHAR(64) | False | True |
+| name | VARCHAR(30) | False | False |
+| teacher | VARCHAR(20) | False | False |
+| chapter | VARCHAR(80) | False | False |
+| description | VARCHAR(180) | False | False |
+| lessons | INTEGER | False | False |
+| completed_lessons | INTEGER | False | False |
+| cover | VARCHAR(20) | False | False |
+| archived | BOOLEAN | False | False |
+| sample | BOOLEAN | False | False |
+| created_at | DATETIME | False | False |
+
+## chat_turns
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| id | VARCHAR(32) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| course_id | VARCHAR(64) | False | False |
+| question | VARCHAR(2000) | False | False |
+| text | TEXT | False | False |
+| sources | JSON | False | False |
+| mode | VARCHAR(20) | False | False |
+| model | VARCHAR(200) | True | False |
+| created_at | DATETIME | False | False |
+
+## course_knowledge_configs
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | True |
+| title | VARCHAR(80) | False | False |
+| goal | VARCHAR(180) | False | False |
+| revision | INTEGER | False | False |
+
+## knowledge_configs
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | False |
+| subject | VARCHAR(30) | False | False |
+| level | VARCHAR(20) | False | False |
+| goal | VARCHAR(180) | False | False |
+
+## knowledge_groups
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | True |
+| id | VARCHAR(64) | False | True |
+| title | VARCHAR(80) | False | False |
+| position | INTEGER | False | False |
+
+## materials
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| id | VARCHAR(64) | False | True |
+| course_id | VARCHAR(64) | False | False |
+| name | VARCHAR(180) | False | False |
+| kind | VARCHAR(5) | False | False |
+| size_bytes | INTEGER | False | False |
+| content | BLOB | False | False |
+| text_content | TEXT | False | False |
+| media_type | VARCHAR(100) | False | False |
+| parse_status | VARCHAR(20) | False | False |
+| sample | BOOLEAN | False | False |
+| created_at | DATETIME | False | False |
+
+## questions
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| id | VARCHAR(64) | False | True |
+| course_id | VARCHAR(64) | False | False |
+| title | VARCHAR(500) | False | False |
+| options | JSON | False | False |
+| answer | INTEGER | False | False |
+| explanation | TEXT | False | False |
+| point | VARCHAR(80) | False | False |
+| source_id | VARCHAR(64) | True | False |
+| sample | BOOLEAN | False | False |
+| created_at | DATETIME | False | False |
+
+## tasks
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| id | VARCHAR(64) | False | True |
+| title | VARCHAR(60) | False | False |
+| description | VARCHAR(500) | False | False |
+| minutes | INTEGER | False | False |
+| planned_date | DATE | True | False |
+| done | BOOLEAN | False | False |
+| target | VARCHAR(200) | False | False |
+| from_question | VARCHAR(64) | True | False |
+| active_key | VARCHAR(100) | True | False |
+| kind | VARCHAR(10) | False | False |
+| course_id | VARCHAR(64) | True | False |
+| reminder_at | DATETIME | True | False |
+| completed_at | DATETIME | True | False |
+| created_at | DATETIME | False | False |
+
+## attempts
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| id | VARCHAR(32) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| course_id | VARCHAR(64) | False | False |
+| question_id | VARCHAR(64) | False | False |
+| submission_id | VARCHAR(100) | False | False |
+| choice | INTEGER | False | False |
+| correct | BOOLEAN | False | False |
+| seconds | INTEGER | False | False |
+| point | VARCHAR(80) | False | False |
+| question_snapshot | JSON | False | False |
+| created_at | DATETIME | False | False |
+
+## knowledge_nodes
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | True |
+| id | VARCHAR(64) | False | True |
+| label | VARCHAR(80) | False | False |
+| description | TEXT | False | False |
+| x | INTEGER | False | False |
+| y | INTEGER | False | False |
+| sample | BOOLEAN | False | False |
+| group_id | VARCHAR(64) | True | False |
+
+## notifications
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| id | VARCHAR(32) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| task_id | VARCHAR(64) | False | False |
+| kind | VARCHAR(10) | False | False |
+| occurrence_at | DATETIME | False | False |
+| title | VARCHAR(100) | False | False |
+| body | VARCHAR(500) | False | False |
+| target | VARCHAR(200) | False | False |
+| created_at | DATETIME | False | False |
+| read | BOOLEAN | False | False |
+
+## task_questions
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| task_id | VARCHAR(64) | False | True |
+| question_id | VARCHAR(64) | False | True |
+| position | INTEGER | False | False |
+| completed_at | DATETIME | True | False |
+
+## task_subtasks
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| id | VARCHAR(32) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| task_id | VARCHAR(64) | False | False |
+| title | VARCHAR(200) | False | False |
+| done | BOOLEAN | False | False |
+| position | INTEGER | False | False |
+
+## knowledge_edges
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | True |
+| source | VARCHAR(64) | False | True |
+| target | VARCHAR(64) | False | True |
+
+## knowledge_task_links
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| user_id | VARCHAR(32) | False | True |
+| course_id | VARCHAR(64) | False | True |
+| node_id | VARCHAR(64) | False | True |
+| task_id | VARCHAR(64) | False | False |
+
+## task_attempts
+
+| 字段 | ORM 类型 | 可空 | 主键 |
+| --- | --- | --- | --- |
+| attempt_id | VARCHAR(32) | False | True |
+| user_id | VARCHAR(32) | False | False |
+| task_id | VARCHAR(64) | False | False |
