@@ -11,7 +11,7 @@ def test_every_operation_and_parameter_has_description():
     schema = create_app().openapi()
     operations = [operation for item in schema['paths'].values()
                   for method, operation in item.items() if method in {'get', 'post', 'put', 'patch', 'delete'}]
-    assert len(operations) == 47
+    assert len(operations) == 59
     for operation in operations:
         assert operation.get('description'), operation['operationId']
         for parameter in operation.get('parameters', []):
@@ -20,9 +20,11 @@ def test_every_operation_and_parameter_has_description():
 
 def test_every_request_property_has_description():
     schema = create_app().openapi()
-    for name in ['Credentials', 'Register', 'EmailCodeRequest', 'CourseCreate', 'CoursePatch', 'ProfilePatch',
+    for name in ['Credentials', 'Register', 'EmailCodeRequest', 'PasswordResetCodeRequest', 'PasswordReset',
+                 'CourseCreate', 'CoursePatch', 'ProfilePatch',
                  'TaskCreate', 'TaskPatch', 'SubtaskCreate', 'SubtaskEdit', 'SubtaskToggle', 'AttemptCreate', 'Ask', 'Reset', 'QuestionCreate',
-                 'NodeCreate', 'EdgeCreate']:
+                 'NodeCreate', 'EdgeCreate', 'QuestionKnowledgeLink', 'QuestionEvidence', 'PracticeDraftRequest',
+                 'GuideAsk', 'CoachRequest', 'CoachConfirm']:
         for field, value in schema['components']['schemas'][name]['properties'].items():
             assert value.get('description'), (name, field)
     node = schema['components']['schemas']['NodeCreate']['properties']
@@ -64,7 +66,7 @@ def test_response_and_upload_fields_are_described():
 
 def test_generated_reference_matches_current_operations():
     schema = create_app().openapi()
-    reference = (ROOT / 'docs/API_REFERENCE.md').read_text(encoding='utf-8')
+    reference = (ROOT / 'docs/接口参考.md').read_text(encoding='utf-8')
     for route, item in schema['paths'].items():
         for method in item:
             if method in {'get', 'post', 'put', 'patch', 'delete'}:

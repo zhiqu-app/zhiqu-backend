@@ -33,9 +33,10 @@ def prepare_task(db, user_id, values):
             raise HTTPException(422, '习题计划需要课程和不重复的题目，不能手动完成')
         own(db, Course, user_id, course_id)
         found = set(db.scalars(select(Question.id).where(Question.user_id == user_id,
-            Question.course_id == course_id, Question.id.in_(question_ids))))
+            Question.course_id == course_id, Question.id.in_(question_ids), Question.deleted_at.is_(None))
+            .order_by(Question.id).with_for_update()))
         if found != set(question_ids):
-            raise HTTPException(422, '题目必须全部属于本人同一课程')
+            raise HTTPException(422, '请选择本人同一课程中仍在题库里的题目')
     elif course_id is not None or question_ids:
         raise HTTPException(422, '自定义计划不能关联习题')
     return question_ids

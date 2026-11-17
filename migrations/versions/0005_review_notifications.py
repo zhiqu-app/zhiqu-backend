@@ -1,4 +1,4 @@
-"""增加任务范围的练习进度与持久化提醒；保留旧版任务。"""
+"""Add task-scoped exercise progress and durable reminders; preserve legacy tasks."""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
@@ -12,7 +12,7 @@ OPTIONS = dict(mysql_engine='InnoDB', mysql_charset='utf8mb4', mysql_collate='ut
 
 
 def upgrade():
-    """新增数据表结构，并关联现有有效的错题方案，不消耗历史作答次数。"""
+    """Add schema and link existing valid mistake plans without consuming historical attempts."""
     with op.batch_alter_table('tasks') as batch:
         batch.add_column(sa.Column('kind', sa.String(10), nullable=False, server_default='custom'))
         batch.add_column(sa.Column('course_id', sa.String(64), nullable=True))
@@ -69,7 +69,7 @@ def upgrade():
 
 
 def downgrade():
-    """仅移除新增的进度与提醒表结构；保留任务和作答记录。"""
+    """Remove only the added progress and reminder schema; preserve tasks and attempts."""
     op.drop_table('notifications')
     op.drop_table('task_attempts')
     with op.batch_alter_table('attempts') as batch:

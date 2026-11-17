@@ -1,5 +1,6 @@
 """沿用 Vue 2 的 camelCase 字段；未知字段报错，禁止前端伪造判分和日期。"""
 from datetime import date, datetime, timezone
+from base64 import b64decode
 from email.headerregistry import Address
 from email.errors import HeaderParseError
 import re
@@ -8,6 +9,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, field_validator, model_validator
 
 Name = Annotated[str, Field(min_length=1, max_length=30)]
+AVATAR_JPEG_PREFIX = 'data:image/jpeg;base64,'
+MAX_AVATAR_LENGTH = 48 * 1024
 
 
 class Input(BaseModel):
@@ -66,6 +69,20 @@ class EmailCodeRequest(Input):
     def email_valid(cls, value):
         """复用账号邮箱格式校验，保证发信与注册使用相同规范化规则。"""
         return Credentials.email_valid(value)
+
+
+class PasswordResetCodeRequest(EmailCodeRequest):
+    email: Annotated[str, Field(min_length=3, max_length=100)] = Field(
+        description='账号的登录邮箱。符合重置条件的账号会收到密码重置验证码。',
+        examples=['student@example.com'],
+    )
+
+
+class PasswordReset(Credentials):
+    verificationCode: Annotated[str, Field(pattern=r'^[0-9]{6}$')] = Field(
+        description='同一账号的 6 位密码重置验证码，5 分钟内有效，只能成功使用一次。',
+        examples=['012345'],
+    )
 
 
 class Patch(Input):
@@ -167,6 +184,26 @@ class ProfilePatch(Patch):
         default=None,
         description='是否显示学习提醒。',
     )
+    avatar: Annotated[str, Field(max_length=MAX_AVATAR_LENGTH)] | None = Field(
+        default=None,
+        description='JPEG 头像的 Base64 Data URL，最多 48 KiB。传空字符串恢复默认头像，省略表示不修改。',
+    )
+
+    @field_validator('avatar')
+    @classmethod
+    def avatar_valid(cls, value):
+        """限制头像为应用上传流程生成的 JPEG Data URL。"""
+        if not value:
+            return value
+        if not value.startswith(AVATAR_JPEG_PREFIX):
+            raise ValueError('头像需要使用 JPEG 图片')
+        try:
+            image = b64decode(value[len(AVATAR_JPEG_PREFIX):], validate=True)
+        except ValueError:
+            raise ValueError('头像图片编码无效') from None
+        if not image.startswith(b'\xff\xd8\xff') or not image.endswith(b'\xff\xd9'):
+            raise ValueError('头像不是有效的 JPEG 图片')
+        return value
 
     @field_validator('email')
     @classmethod
@@ -331,8 +368,11 @@ class Ask(Input):
         description='课程 ID，必须属于当前登录账号；使用课程接口返回的 id。',
     )
     question: Annotated[str, Field(min_length=2, max_length=2000)] = Field(
-        description='学习问题，2～2000 字；仅检索指定课程下可解析的文字资料。',
-        examples=['对角矩阵的特征值怎么求？'],
+        description='学习问题，2～2000 字，支持课程问答、知识点梳理、练习题和相关拓展。',
+        examples=['对角矩阵的特征值怎么求？', '根据这份资料整理知识点、出三道练习题并补充拓展。'],
+    )
+    materialId: Annotated[str, Field(min_length=1, max_length=64)] | None = Field(
+        default=None, description='可选的课程资料 ID；传入后仅使用这份文字资料。省略时使用当前课程资料。',
     )
 
 
@@ -344,6 +384,20 @@ class Reset(Input):
         default=False,
         description='是否显式导入样例课程、资料、题库和图谱；默认 false，正式账号不会自动生成成绩。',
     )
+
+
+class QuestionEvidence(Input):
+    materialId: Annotated[str, Field(min_length=1, max_length=64)] = Field(description='引用的课程资料 ID。')
+    name: Annotated[str, Field(min_length=1, max_length=240)] = Field(description='引用资料名称，保存时从资料记录读取。')
+    excerpt: Annotated[str, StringConstraints(min_length=1, max_length=1200, strip_whitespace=False)] = Field(description='可在已解析资料中核对的原文。')
+    start: Annotated[int, Field(ge=0, le=2_010_000, strict=True)] = Field(description='正文中 UTF-16 起始位置。')
+    end: Annotated[int, Field(ge=1, le=2_010_000, strict=True)] = Field(description='正文中 UTF-16 结束位置，不含该位置。')
+    page: Annotated[int, Field(ge=1, le=200, strict=True)] | None = Field(default=None, description='PDF 引用页。')
+
+
+class QuestionKnowledgeLink(Input):
+    knowledgeNodeId: Annotated[str, Field(min_length=1, max_length=64)] = Field(
+        description='要关联的课程星图节点 ID。')
 
 
 class QuestionCreate(Input):
@@ -360,12 +414,15 @@ class QuestionCreate(Input):
         description='答案解析，提交作答后返回给前端。',
     )
     point: Annotated[str, Field(min_length=1, max_length=80)] = Field(
-        description='知识点名称，例如特征值；用于按知识点汇总报告与图谱统计。',
+        description='知识点名称快照。没有稳定节点 ID 时可作为旧题标签。',
     )
     source: Annotated[str, Field(max_length=64)] | None = Field(
         default=None,
         description='可选来源资料 ID，必须属于同一课程；不关联资料时省略或传 null。',
     )
+    knowledgeNodeId: Annotated[str, Field(min_length=1, max_length=64)] | None = Field(
+        default=None, description='可选稳定知识点 ID，必须属于题目课程。')
+    sourceEvidence: QuestionEvidence | None = Field(default=None, description='可选原文证据，保存前校验资料归属和原文位置。')
 
     @model_validator(mode='after')
     def answer_exists(self):
@@ -434,6 +491,7 @@ class ProfileOut(BaseModel):
     reminders: bool = Field(
         description='是否显示学习提醒。',
     )
+    avatar: str = Field(description='账号自定义头像的 JPEG Data URL。空字符串表示显示默认头像。')
 
 
 class UserOut(BaseModel):

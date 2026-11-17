@@ -35,6 +35,7 @@ class User(Base):
     major: Mapped[str] = mapped_column(String(30), default='')
     grade: Mapped[str] = mapped_column(String(10), default='其他')
     contact_email: Mapped[str] = mapped_column(String(100), default='')
+    avatar: Mapped[str | None] = mapped_column(Text)
     reduced_motion: Mapped[bool] = mapped_column(Boolean, default=False)
     reminders: Mapped[bool] = mapped_column(Boolean, default=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -119,14 +120,18 @@ class Question(Base):
     answer: Mapped[int] = mapped_column(Integer)
     explanation: Mapped[str] = mapped_column(Text)
     point: Mapped[str] = mapped_column(String(80))
+    knowledge_node_id: Mapped[str | None] = mapped_column(String(64))
     source_id: Mapped[str | None] = mapped_column(String(64))
+    source_evidence: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     sample: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(Timestamp, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(Timestamp)
     course: Mapped[Course] = relationship(back_populates='questions')
     __table_args__ = (
         ForeignKeyConstraint(['user_id', 'course_id'], ['courses.user_id', 'courses.id'], ondelete='CASCADE'),
         CheckConstraint('answer >= 0 AND answer < 6', name='ck_question_answer'),
         Index('ix_question_course', 'user_id', 'course_id', 'created_at', 'id'),
+        Index('ix_question_course_node', 'user_id', 'course_id', 'knowledge_node_id'),
     )
 
 
@@ -141,6 +146,7 @@ class Attempt(Base):
     correct: Mapped[bool] = mapped_column(Boolean)
     seconds: Mapped[int] = mapped_column(Integer)
     point: Mapped[str] = mapped_column(String(80))
+    knowledge_node_id: Mapped[str | None] = mapped_column(String(64))
     question_snapshot: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(Timestamp, default=utcnow)
     __table_args__ = (
@@ -152,6 +158,7 @@ class Attempt(Base):
         Index('ix_attempt_owner_date', 'user_id', 'created_at', 'id'),
         Index('ix_attempt_owner_course_date', 'user_id', 'course_id', 'created_at', 'id'),
         Index('ix_attempt_owner_question', 'user_id', 'question_id', 'created_at', 'id'),
+        Index('ix_attempt_course_node', 'user_id', 'course_id', 'knowledge_node_id'),
     )
 
 
@@ -314,6 +321,23 @@ class KnowledgeTaskLink(Base):
     )
 
 
+class CoachHistory(Base):
+    __tablename__ = 'review_coach_history'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32))
+    course_id: Mapped[str] = mapped_column(String(64))
+    course_name: Mapped[str] = mapped_column(String(30))
+    goal: Mapped[str] = mapped_column(String(200))
+    recommendation: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(Timestamp, default=utcnow)
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id', 'course_id'], ['courses.user_id', 'courses.id'],
+                             name='fk_coach_history_course', ondelete='CASCADE'),
+        Index('ix_coach_history_owner_date', 'user_id', 'created_at', 'id'),
+        Index('ix_coach_history_course_date', 'user_id', 'course_id', 'created_at', 'id'),
+    )
+
+
 class ChatTurn(Base):
     __tablename__ = 'chat_turns'
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -322,6 +346,7 @@ class ChatTurn(Base):
     question: Mapped[str] = mapped_column(String(2000))
     text: Mapped[str] = mapped_column(Text)
     sources: Mapped[list] = mapped_column(JSON)
+    questions: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
     mode: Mapped[str] = mapped_column(String(20))
     model: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(Timestamp, default=utcnow)
@@ -331,9 +356,9 @@ class ChatTurn(Base):
     )
 
 
-class EmailVerification(Base):
-    """每个邮箱一个验证码槽，原子管理重发、错误次数与按小时发送配额。"""
-    __tablename__ = 'email_verifications'
+class EmailCodeSlot(Base):
+    """验证码摘要、有效期、错误次数与发送配额。"""
+    __abstract__ = True
     email: Mapped[str] = mapped_column(String(100), primary_key=True)
     request_id: Mapped[str] = mapped_column(String(32))
     code_digest: Mapped[str] = mapped_column(String(64))
@@ -343,9 +368,21 @@ class EmailVerification(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=False)
     window_started_at: Mapped[datetime] = mapped_column(Timestamp)
     window_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class EmailVerification(EmailCodeSlot):
+    __tablename__ = 'email_verifications'
     __table_args__ = (
         CheckConstraint('failed_attempts >= 0 AND failed_attempts <= 5', name='ck_email_code_attempts'),
         CheckConstraint('window_count >= 0 AND window_count <= 5', name='ck_email_code_quota'),
+    )
+
+
+class PasswordResetVerification(EmailCodeSlot):
+    __tablename__ = 'password_reset_verifications'
+    __table_args__ = (
+        CheckConstraint('failed_attempts >= 0 AND failed_attempts <= 5', name='ck_reset_code_attempts'),
+        CheckConstraint('window_count >= 0 AND window_count <= 5', name='ck_reset_code_quota'),
     )
 
 

@@ -4,15 +4,17 @@ from datetime import timedelta
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from .dependencies import DB, CurrentUser, bearer, rate
 from .models import User, AuthSession, utcnow
-from .schemas import AuthOut, Credentials, Register, ProfilePatch, UserOut, EmailCodeRequest
-from .verification import send_code, consume_code
+from .schemas import (AuthOut, Credentials, Register, ProfilePatch, UserOut, EmailCodeRequest,
+                      PasswordReset, PasswordResetCodeRequest)
+from .verification import (code_response, consume_code, deliver_reset_code, reserve_reset_code,
+                           reset_account, send_code)
 from .security import check_password, hash_password, token_digest
 from .seed import seed_user
 from .serializers import iso, profile, user_view
@@ -51,6 +53,41 @@ def email_code(body: EmailCodeRequest, request: Request, db: DB):
     """给未注册邮箱发六位验证码；60 秒重发、五分钟有效，每邮箱每小时最多五次，不返回验证码。"""
     request.app.state.limiter.check(('email-code-ip',request.client.host),30,window=3600)
     return send_code(db,request.app.state.settings,body.email,request.app.state.mailer)
+
+
+@router.post(
+    '/auth/password-reset/code',
+    summary='申请密码重置验证码',
+    response_model=output.PasswordResetCodeOut,
+    responses={code: output.ERROR_RESPONSES[code] for code in [409, 422, 429, 503]},
+)
+def password_reset_code(body: PasswordResetCodeRequest, request: Request, db: DB, background: BackgroundTasks):
+    """统一返回受理提示，只有已验证登录邮箱的正式账号收到邮件。"""
+    state = request.app.state
+    state.limiter.check(('password-reset-code-ip', request.client.host), 30, window=3600)
+    challenge = reserve_reset_code(db, state.settings, body.email)
+    if challenge is not None:
+        background.add_task(deliver_reset_code, state.database, state.settings, body.email,
+                            state.password_reset_mailer, *challenge)
+    return code_response('如果该邮箱已注册并完成验证，你将收到重置验证码。请检查收件箱或垃圾邮件。')
+
+
+@router.post(
+    '/auth/password-reset',
+    status_code=204,
+    summary='使用邮箱验证码重置密码',
+    responses={code: output.ERROR_RESPONSES[code] for code in [400, 422, 429, 503]},
+)
+def password_reset(body: PasswordReset, request: Request, db: DB):
+    """同一事务内消费重置码、更新密码哈希、撤销账号的所有登录会话。"""
+    rate(request, 'password-reset-ip', request.client.host, 30)
+    user = db.scalar(reset_account(body.email).with_for_update())
+    if user is None:
+        raise HTTPException(400, '验证码错误、已过期或已失效，请重新获取')
+    consume_code(db, request.app.state.settings, body.email, body.verificationCode, account_id=user.id)
+    user.password_hash = hash_password(body.password)
+    db.execute(delete(AuthSession).where(AuthSession.user_id == user.id))
+    return Response(status_code=204)
 
 
 @router.post(
@@ -98,7 +135,8 @@ def login(body: Credentials, request: Request, db: DB):
     """查询用户并校验密码哈希，成功后返回会话令牌和资料；错误账号/密码统一返回 401。"""
     rate(request, 'login-ip', request.client.host, 30)
     rate(request, 'login-account', body.email, 10)
-    user = db.scalar(select(User).where(User.email == body.email, User.is_guest.is_(False)))
+    # 与密码重置共用账号行锁，避免用旧密码校验后又创建有效会话。
+    user = db.scalar(select(User).where(User.email == body.email, User.is_guest.is_(False)).with_for_update())
     valid = check_password(body.password, user.password_hash if user else request.app.state.dummy_hash)
     if not user or not valid:
         raise HTTPException(401, '邮箱或密码错误', headers={'WWW-Authenticate': 'Bearer'})

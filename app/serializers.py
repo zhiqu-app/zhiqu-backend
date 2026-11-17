@@ -1,6 +1,8 @@
 """数据库 snake_case 与现有 Vue camelCase 的边界。禁止直接序列化 ORM __dict__。"""
 from datetime import timezone
 
+from .chat_quiz import can_prepare_questions
+
 
 def iso(value):
     """将数据库 UTC 时间转为以 Z 结尾的 ISO 8601 字符串。"""
@@ -10,7 +12,7 @@ def iso(value):
 def profile(user):
     """将用户展示资料转换为 Vue 使用的 camelCase 字段，不返回密码。"""
     return {'name': user.name, 'major': user.major, 'grade': user.grade, 'email': user.contact_email,
-            'reducedMotion': user.reduced_motion, 'reminders': user.reminders}
+            'avatar': user.avatar or '', 'reducedMotion': user.reduced_motion, 'reminders': user.reminders}
 
 
 def user_view(user):
@@ -43,9 +45,10 @@ def material_view(row, detail=False):
 def question_view(row, graded=False):
     """构造题目结构；仅 graded=true 时加入答案和解析，供判题快照使用。"""
     result = {'id': row.id, 'courseId': row.course_id, 'title': row.title, 'options': row.options,
-              'point': row.point, 'source': row.source_id, 'sample': row.sample}
+              'point': row.point, 'source': row.source_id, 'sample': row.sample,
+              'knowledgeNodeId': row.knowledge_node_id}
     if graded:
-        result.update(answer=row.answer, explanation=row.explanation)
+        result.update(answer=row.answer, explanation=row.explanation, sourceEvidence=row.source_evidence)
     return result
 
 
@@ -53,6 +56,7 @@ def attempt_view(row):
     """序列化作答记录，包含判题结果、幂等键和服务端时间。"""
     return {'id': row.id, 'courseId': row.course_id, 'questionId': row.question_id,
             'title': row.question_snapshot.get('title', '练习题'), 'point': row.point,
+            'knowledgeNodeId': row.knowledge_node_id, 'sourceEvidence': row.question_snapshot.get('sourceEvidence'),
             'submissionId': row.submission_id, 'choice': row.choice, 'correct': row.correct,
             'seconds': row.seconds, 'date': iso(row.created_at)}
 
@@ -70,7 +74,14 @@ def task_view(row):
             'completedAt': iso(row.completed_at) if row.completed_at else None}
 
 
+def coach_history_view(row):
+    """读取已保存的历史建议以及生成时的课程名称、目标和时间。"""
+    return {**row.recommendation, 'id': row.id, 'courseId': row.course_id,
+            'courseName': row.course_name, 'goal': row.goal, 'createdAt': iso(row.created_at)}
+
+
 def chat_view(row):
     """序列化持久化问答和来源快照，标明真实使用的模型/检索模式。"""
     return {'id': row.id, 'courseId': row.course_id, 'question': row.question, 'text': row.text,
-            'sources': row.sources, 'mode': row.mode, 'model': row.model, 'createdAt': iso(row.created_at)}
+            'sources': row.sources, 'questions': row.questions or [], 'canPrepareQuestions': can_prepare_questions(row),
+            'mode': row.mode, 'model': row.model, 'createdAt': iso(row.created_at)}

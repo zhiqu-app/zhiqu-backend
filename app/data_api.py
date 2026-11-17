@@ -6,10 +6,11 @@ from fastapi import APIRouter, Response
 from sqlalchemy import delete, select
 
 from .dependencies import DB, CurrentUser
-from .models import Course, Material, Task, Attempt, ChatTurn, utcnow
+from .models import Course, Material, Task, Attempt, ChatTurn, CoachHistory, utcnow
 from .schemas import Reset
 from .seed import seed_user
-from .serializers import (iso, profile, course_view, material_view, task_view, attempt_view, chat_view)
+from .serializers import (iso, profile, course_view, material_view, task_view, attempt_view, chat_view,
+                          coach_history_view)
 
 router = APIRouter(tags=['学习数据管理'])
 
@@ -26,13 +27,14 @@ router = APIRouter(tags=['学习数据管理'])
     response_description='成功，返回内容见下方 Schema；204 无响应体。',
 )
 def export_data(user: CurrentUser, db: DB):
-    """下载课程、解析文字、任务、作答、设置和问答的 JSON。不是完整数据库备份，不包含原文件二进制、题库、图谱、密码或令牌。"""
+    """下载课程、解析文字、任务、作答、设置、问答和复习建议的 JSON，不含原文件二进制、题库、图谱、密码或令牌。"""
     def rows(model, render):
         """查询当前账号指定模型的记录，并使用传入的序列化函数转换成导出结构。"""
         return [render(row) for row in db.scalars(select(model).where(model.user_id == user.id))]
     value = {'version': 2, 'exportedAt': iso(utcnow()), 'settings': profile(user),
         'courses': rows(Course, course_view), 'materials': rows(Material, lambda m: material_view(m, True)),
-        'tasks': rows(Task, task_view), 'attempts': rows(Attempt, attempt_view), 'chatHistory': rows(ChatTurn, chat_view)}
+        'tasks': rows(Task, task_view), 'attempts': rows(Attempt, attempt_view), 'chatHistory': rows(ChatTurn, chat_view),
+        'coachHistory': rows(CoachHistory, coach_history_view)}
     return Response(json.dumps(value, ensure_ascii=False, indent=2), media_type='application/json',
         headers={'Content-Disposition': 'attachment; filename="zhiqu-learning-data.json"'})
 

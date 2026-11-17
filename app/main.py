@@ -4,9 +4,12 @@ from contextlib import asynccontextmanager
 from contextlib import suppress
 import asyncio
 import logging
+from pathlib import Path
 import secrets
 
+from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +23,7 @@ from .config import Settings
 from .database import Database
 from .dependencies import DB
 from .security import RateLimiter, hash_password
-from .mailer import send_registration_email
+from .mailer import send_password_reset_email, send_registration_email
 
 
 def create_app(settings=None, *, database=None):
@@ -33,9 +36,17 @@ def create_app(settings=None, *, database=None):
     async def lifespan(app):
         """启动时验证 MySQL 迁移版本与数据包大小，关闭时释放运行引擎。"""
         if not injected:
+            config_path = Path(__file__).resolve().parents[1] / 'alembic.ini'
+            expected = set(ScriptDirectory.from_config(Config(str(config_path))).get_heads())
             with database.engine.connect() as connection:
-                if MigrationContext.configure(connection).get_current_revision() != '0007':
-                    raise RuntimeError('数据库未初始化，请先运行 python -m alembic upgrade head')
+                current = set(MigrationContext.configure(connection).get_current_heads())
+                if current != expected:
+                    current_label = ', '.join(sorted(current)) or '未迁移'
+                    expected_label = ', '.join(sorted(expected))
+                    raise RuntimeError(
+                        f'数据库迁移版本不匹配（当前 {current_label}，代码要求 {expected_label}）。'
+                        '请在后端目录运行 python -m alembic upgrade head'
+                    )
                 packet = connection.scalar(text('SELECT @@max_allowed_packet'))
                 if packet < 64 * 1024 * 1024:
                     raise RuntimeError('MySQL max_allowed_packet 至少设置为 64 MB 后重新连接')
@@ -60,6 +71,7 @@ def create_app(settings=None, *, database=None):
     app.state.notification_hub = notifications.NotificationHub()
     app.state.limiter = RateLimiter()
     app.state.mailer = send_registration_email
+    app.state.password_reset_mailer = send_password_reset_email
     app.state.dummy_hash = hash_password(secrets.token_urlsafe(16))
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
         allow_methods=['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allow_headers=['Authorization','Content-Type'],

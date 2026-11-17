@@ -1,6 +1,6 @@
 # MySQL 8.0：配置、初始化和启动
 
-本项目使用 SQLAlchemy 2 ORM + PyMySQL 连接你已安装的 MySQL 8.0。无需为正式运行再安装 SQLite，也不需要另装 Docker。
+本项目使用 SQLAlchemy 2 ORM + PyMySQL 连接已安装的 MySQL 8.0。无需为正式运行再安装 SQLite，也不需要另装 Docker。
 
 ## 1. 准备 Python
 
@@ -17,27 +17,24 @@ python -m venv .venv
 
 ## 2. 在 MySQL 创建专用数据库与用户
 
-
 在 MySQL Workbench 使用你安装数据库时设置的管理员账号连接本机服务，默认地址 127.0.0.1、端口 3306。执行前先查看 `sql/00_create_database.sql`，将两个密码占位符换成自己设置的应用密码；也可以在查询窗口执行：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS zhiqu_team
   CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
-CREATE USER IF NOT EXISTS 'root'@'localhost'
+CREATE USER IF NOT EXISTS 'zhiqu_team_app'@'localhost'
   IDENTIFIED BY '替换成你自己的应用密码';
 
-CREATE USER IF NOT EXISTS 'root'@'127.0.0.1'
+CREATE USER IF NOT EXISTS 'zhiqu_team_app'@'127.0.0.1'
   IDENTIFIED BY '替换成你自己的应用密码';
 
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES
-  ON zhiqu_team.* TO 'root'@'localhost';
+  ON zhiqu_team.* TO 'zhiqu_team_app'@'localhost';
 
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES
-  ON zhiqu_team.* TO 'root'@'127.0.0.1';
+  ON zhiqu_team.* TO 'zhiqu_team_app'@'127.0.0.1';
 ```
-
-如果代码不可用说明你的名字或者mysql启动有错误，也可以自己进行手动创建数据库名为zhiqu_team。
 
 这两个账号条目只允许本机连接，适配 localhost / 127.0.0.1 的来源匹配；密码请设置一致。`IF NOT EXISTS` 不会替已有账号改密码。如果以前已经创建了同名账号，填写它现有的密码，或由数据库管理员按团队约定调整。
 

@@ -1,4 +1,6 @@
+"""Add normalized custom-task children and preserve every legacy parent's state."""
 from uuid import uuid4
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -9,7 +11,7 @@ depends_on = None
 
 
 def upgrade():
-    """仅回填自定义父项；保留任务 ID、时间及练习进度不变"""
+    """Backfill custom parents only; leave task IDs, times and exercise progress intact."""
     children = op.create_table('task_subtasks',
         sa.Column('id', sa.String(32), primary_key=True),
         sa.Column('user_id', sa.String(32), nullable=False),
@@ -33,5 +35,5 @@ def upgrade():
 
 
 def downgrade():
-    """仅移除子项，保留父项最新的聚合状态。"""
+    """Remove children only, retaining the parent's most recent aggregate state."""
     op.drop_table('task_subtasks')

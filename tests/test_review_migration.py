@@ -42,7 +42,7 @@ def assert_legacy_review_upgrade(connection):
     assert not rows['mistake_pending'].done
     assert rows['mistake_pending'].completed_at is None
     assert '/app/practice?task=mistake_pending&course=course' == rows['mistake_pending'].target
-    assert len(connection.execute(select(Attempt.__table__)).all()) == 1
+    assert connection.scalars(select(Attempt.id)).all() == ['old_attempt']
 
 
 def test_0005_preserves_completed_legacy_tasks_and_pending_progress(tmp_path):

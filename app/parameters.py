@@ -9,6 +9,8 @@ QuestionId = Annotated[str, Path(min_length=1, max_length=80, description='题�
 TaskId = Annotated[str, Path(min_length=1, max_length=80, description='复习任务 ID。由任务创建或列表接口返回。')]
 RequiredCourse = Annotated[str, Query(min_length=1, max_length=80, description='必填课程 ID，仅查询该课程的数据；体验账号可使用 linear，真实账号使用接口返回的 id。')]
 OptionalCourse = Annotated[str | None, Query(max_length=80, description='可选课程 ID；不传时查询当前账号全部课程的数据。')]
+OptionalKnowledgeNode = Annotated[str | None, Query(min_length=1, max_length=64, description='可选知识点 ID。填写时必须同时指定其所属课程。')]
+OptionalQuestionTask = Annotated[str | None, Query(min_length=1, max_length=80, description='可选习题计划 ID。返回该计划原先选定的题目，包括已从题库移除的题目。')]
 Search = Annotated[str, Query(max_length=100, description='搜索关键词；课程匹配名称/简介，资料匹配文件名。不传或空字符串表示不按关键词过滤。', examples=['线性代数'])]
 CourseStatus = Annotated[Literal['all', 'active', 'archived'], Query(description='课程状态：all 全部，active 未归档，archived 已归档。')]
 TaskStatus = Annotated[Literal['all', 'pending', 'done', 'today'], Query(description='任务状态：all 全部，pending 未完成，done 已完成，today 上海时区今天到期的任务。')]

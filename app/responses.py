@@ -3,7 +3,7 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
-from .schemas import AuthOut, ProfileOut, UserOut
+from .schemas import AuthOut, ProfileOut, QuestionCreate, QuestionEvidence, UserOut
 
 T = TypeVar('T')
 
@@ -184,6 +184,8 @@ class TaskOut(BaseModel):
 
 
 class QuestionOut(BaseModel):
+    knowledgeNodeId: str | None = Field(default=None, description='稳定知识点 ID；旧题或未关联题为 null。')
+    sourceEvidence: QuestionEvidence | None = Field(default=None, description='原文证据；仅已判题的快照中返回。')
     id: str = Field(
         description='题目 ID。',
     )
@@ -217,6 +219,8 @@ class GradedQuestionOut(QuestionOut):
 
 
 class AttemptOut(BaseModel):
+    knowledgeNodeId: str | None = Field(default=None, description='作答时关联的稳定知识点 ID。')
+    sourceEvidence: QuestionEvidence | None = Field(default=None, description='作答时保存的原文引用。')
     title: str = Field(description='作答时的题干快照，供历史列表展示，不返回正确答案。')
     point: str = Field(description='本次作答的知识点名称。')
     id: str = Field(
@@ -246,6 +250,8 @@ class AttemptOut(BaseModel):
 
 
 class GradeOut(BaseModel):
+    knowledgeNodeId: str | None = Field(default=None, description='本次作答关联的稳定知识点 ID。')
+    sourceEvidence: QuestionEvidence | None = Field(default=None, description='题目快照中保存的原文证据。')
     task: TaskOut | None = Field(default=None, description='提交后最新计划及进度；普通作答为 null。')
     attempt: AttemptOut = Field(
         description='本次作答，重复提交返回原记录。',
@@ -289,6 +295,8 @@ class PlanMistakeOut(BaseModel):
 
 
 class PointReport(BaseModel):
+    courseId: str = Field(description='本行知识点所属课程。')
+    knowledgeNodeId: str | None = Field(default=None, description='该课程中仍存在的知识点 ID。旧记录可为 null。')
     name: str = Field(
         description='知识点名称。',
     )
@@ -403,11 +411,13 @@ class NodeOut(BaseModel):
 
 
 class KnowledgeNodeOut(NodeOut):
+    reviewStatus: Literal['unpracticed', 'needs_review', 'retest_passed', 'practiced'] = Field(
+        default='unpracticed', description='根据实际作答及变式复测结果计算的复习状态。')
     practiceCount: int = Field(
-        description='该课程同名知识点的作答次数。',
+        description='该课程关联此知识点 ID 的作答次数。',
     )
     practiceRate: int = Field(
-        description='该课程同名知识点的作答正确率。',
+        description='该课程关联此知识点 ID 的作答正确率。',
     )
 
 
@@ -475,6 +485,12 @@ class ChatOut(BaseModel):
     sources: list[SourceOut] = Field(
         description='引用的资料片段；资料不足时可为空。',
     )
+    questions: list[QuestionCreate] = Field(
+        default_factory=list, description='经结构校验的单选题草稿，可提交到同一课程题库导入接口。',
+    )
+    canPrepareQuestions: bool = Field(
+        default=False, description='旧聊天是否可根据对应原文整理为单选题草稿。',
+    )
     mode: Literal['retrieval', 'llm'] = Field(
         description='本次实际使用资料检索还是外部模型。',
     )
@@ -499,6 +515,10 @@ class EmailCodeOut(BaseModel):
     message: str = Field(description='SMTP 已接受邮件后的提示；不保证收件箱即时投递，请检查垃圾邮件。')
     expiresIn: int = Field(description='验证码有效秒数，当前 300 秒。')
     resendAfter: int = Field(description='同一邮箱再次发送需等待的秒数，当前 60 秒。')
+
+
+class PasswordResetCodeOut(EmailCodeOut):
+    message: str = Field(description='已受理请求。该提示不表示账号是否存在，也不确认邮件投递结果。')
 
 
 class ErrorDetail(BaseModel):
